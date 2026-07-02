@@ -4,7 +4,7 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.1.0.dev0-yellow.svg)](CHANGELOG.md)
+[![Status](https://img.shields.io/badge/status-v0.1.0.dev0-yellow.svg)](https://github.com/GaryCL971/xiii/releases)
 
 ---
 
@@ -15,7 +15,7 @@ A linter for overfitting in trading backtests. Inspired by 3 years of backtest d
 XIII checks your backtest against the **Thirteenth Man Protocol** — 8 gates designed to catch every type of lie a backtest can tell:
 
 ```
-A. Livrable integrity       → no fake stand-ins (np.random, TODO, FIXME)
+A. Deliverable integrity    → no fake stand-ins (np.random, TODO, FIXME)
 B. Window honesty           → no Sharpe inflation from lucky periods
 C. Sizing honesty           → broker limits respected under stress
 D. Brick-by-brick audit     → every component actually helps
@@ -109,7 +109,7 @@ print(json.dumps(json.loads(report.to_json()), indent=2))
 
 ## The Story
 
-Read **[The Essay](content/ESSAI_PHARE_DRAFT_EN.md)** to understand why XIII exists:
+The full essay behind XIII is coming with the launch post. The short version:
 
 > I spent 3 years building trading robots. The only strategies that ever made real money were bugs in the code. That taught me exactly what to ask a backtest to make it stop lying.
 
@@ -151,7 +151,7 @@ Apache 2.0 — see [LICENSE](LICENSE)
 
 Built by [GaryCL971](https://github.com/GaryCL971) from 3 years of backtest mistakes.
 
-If XIII saves you 6 months of wasted work, consider [subscribing to the research](https://substack.com/GaryCL971) or [sending me your backtest for a red-team audit](mailto:redacted@example.com).
+If XIII saves you 6 months of wasted work, [open an issue](https://github.com/GaryCL971/xiii/issues) — feedback and red-team requests welcome.
 
 ---
 

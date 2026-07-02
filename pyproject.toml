@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "xiii"
 version = "0.1.0.dev0"
-description = "Le linter d'overfitting pour backtests — le Protocole du Treizième Homme, automatisé."
+description = "The overfitting linter for trading backtests — the Thirteenth Man Protocol, automated."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
@@ -18,9 +18,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7", "matplotlib>=3.7"]
-
-[project.scripts]
-xiii = "xiii.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
