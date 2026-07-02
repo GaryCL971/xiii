@@ -1,8 +1,8 @@
 """
-Démo complet XIII — tous les checks disponibles en v0.1 (8/9).
+Complete XIII demo — all checks available in v0.1 (8/9).
 
-Cas : un stratégie FTMO "candidate" avec équité, trades, et sources.
-XIII lance l'audit complet et signale tous les problèmes.
+Case: an FTMO "candidate" strategy with equity, trades, and sources.
+XIII launches the full audit and flags all problems.
 """
 from pathlib import Path
 
@@ -17,15 +17,15 @@ HERE = Path(__file__).parent
 
 
 def build_realistic_equity(n_days=4 * 252, sharpe_base=1.2, drawdown_base=-0.08):
-    """Courbe d'équité réaliste : edge robuste + volatilité + 1 mauvaise année."""
+    """Realistic equity curve: robust edge + volatility + 1 bad year."""
     idx = pd.bdate_range("2022-01-01", periods=n_days)
 
-    # 3 ans OK, 1 an mauvais (crise simulée)
+    # 3 years OK, 1 year bad (simulated crisis)
     parts = [
-        rng.normal(0.00060, 0.010, 252),      # an 1 : OK
-        rng.normal(0.00060, 0.010, 252),      # an 2 : OK
-        rng.normal(0.00060, 0.010, 252),      # an 3 : OK
-        rng.normal(-0.00020, 0.015, n_days - 3*252),  # an 4 : mauvais (rendement négatif + vol haute)
+        rng.normal(0.00060, 0.010, 252),      # yr 1: OK
+        rng.normal(0.00060, 0.010, 252),      # yr 2: OK
+        rng.normal(0.00060, 0.010, 252),      # yr 3: OK
+        rng.normal(-0.00020, 0.015, n_days - 3*252),  # yr 4: bad (negative return + high vol)
     ]
     returns = np.concatenate(parts)
     equity = 100_000 * (1 + returns).cumprod()
@@ -34,7 +34,7 @@ def build_realistic_equity(n_days=4 * 252, sharpe_base=1.2, drawdown_base=-0.08)
 
 
 def build_trades_from_equity(equity, n_trades_target=50):
-    """Simule une séquence de trades cohérente avec l'équité."""
+    """Simulates a trade sequence consistent with equity."""
     n_days = len(equity)
     trade_days = np.random.choice(n_days - 1, size=n_trades_target, replace=False)
     trade_days = np.sort(trade_days)
@@ -62,17 +62,17 @@ def build_trades_from_equity(equity, n_trades_target=50):
 
 
 print("\n" + "="*70)
-print("  XIII — Audit complet v0.1 (8/9 checks)")
+print("  XIII — Complete Audit v0.1 (8/9 checks)")
 print("="*70)
 
 # Build test data
 equity = build_realistic_equity()
 trades = build_trades_from_equity(equity)
 
-print(f"\n  Données: {len(equity)} jours d'équité, {len(trades)} trades")
+print(f"\n  Data: {len(equity)} days of equity, {len(trades)} trades")
 print(f"  Source: {HERE / 'strategie_fautive.py'}")
 
-# Audit complet
+# Full audit
 rep = xiii.audit(
     equity=equity,
     trades=trades,
@@ -85,10 +85,10 @@ rep = xiii.audit(
 
 rep.print()
 
-print(f"\n  Résumé :")
-print(f"    Checks exécutés: {len(rep.verdicts)}/{rep.checks_total}")
+print(f"\n  Summary:")
+print(f"    Checks executed: {len(rep.verdicts)}/{rep.checks_total}")
 print(f"    FAIL: {sum(1 for v in rep.verdicts if v.status == 'FAIL')}")
 print(f"    WARN: {sum(1 for v in rep.verdicts if v.status == 'WARN')}")
 print(f"    PASS: {sum(1 for v in rep.verdicts if v.status == 'PASS')}")
 print(f"    SKIP: {sum(1 for v in rep.verdicts if v.status == 'SKIP')}")
-print(f"\n  Verdict: {'✅ PASSER' if rep.passed else '❌ BLOQUER'} (au stade v0.1)")
+print(f"\n  Verdict: {'OK (stage v0.1)' if rep.passed else 'BLOCK (stage v0.1)'}")

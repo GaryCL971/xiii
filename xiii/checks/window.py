@@ -1,16 +1,16 @@
 """
-xiii.checks.window — section B du protocole (honnêteté de la fenêtre).
+xiii.checks.window — section B of protocol (window honesty).
 
-B1_window_sensitivity : LE check qui rattrape le mirage.
-Recalcule le Sharpe sur le plein historique vs des sous-fenêtres récentes.
-Si une fenêtre courte et favorable gonfle le Sharpe, le chiffre "vendable"
-est un artefact de fenêtre — exactement la faille Sharpe 2.53 -> honnête 1.22.
+B1_window_sensitivity : THE check that catches the mirage.
+Recalculates Sharpe over full history vs recent sub-windows.
+If a short favorable window inflates Sharpe, the "sellable" number
+is a window artifact — exactly the flaw Sharpe 2.53 -> honest 1.22.
 
-Logique de référence : audit 13e homme du 2026-06-21
-("2.3 ans 2023-2025 gonflaient le Sharpe de +49% vs 2021-2025").
+Reference logic: 13th Man audit from 2026-06-21
+("2.3 years 2023-2025 inflated Sharpe by +49% vs 2021-2025").
 
-Entrée : une série de rendements ~quotidiens (pd.Series). B1 raisonne en nombre
-d'observations (≈252/an) ; le support des séries irrégulières viendra plus tard.
+Input: a series of ~daily returns (pd.Series). B1 reasons in observation count
+(≈252/yr); support for irregular series comes later.
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ _ID = "B1_window_sensitivity"
 
 
 def _yr(y: int) -> str:
-    return "1 an" if y == 1 else f"{y} ans"
+    return "1 yr" if y == 1 else f"{y} yrs"
 
 
 def b1_window_sensitivity(
@@ -33,17 +33,17 @@ def b1_window_sensitivity(
     fail_pct: float = 50.0,
     min_obs: int = 252,
 ) -> CheckResult:
-    """Détecte un Sharpe gonflé par une sous-fenêtre récente favorable.
+    """Detects a Sharpe inflated by a recent favorable sub-window.
 
-    warn_pct / fail_pct : seuils de gonflement (%) du Sharpe d'une sous-fenêtre
-    vs le plein historique. 2.53/1.22 = +107% -> FAIL ; +49% -> WARN.
+    warn_pct / fail_pct: thresholds for Sharpe inflation (%) of a sub-window
+    vs full history. 2.53/1.22 = +107% -> FAIL; +49% -> WARN.
     """
     if returns is None or len(returns.dropna()) < min_obs:
         n = 0 if returns is None else len(returns.dropna())
         return CheckResult(
             _ID, "B", "SKIP",
-            "Historique insuffisant pour tester la sensibilité de fenêtre",
-            f"Requiert >= {min_obs} points datés (~1 an quotidien) ; reçu {n}.",
+            "Insufficient history to test window sensitivity",
+            f"Requires >= {min_obs} dated points (~1 yr daily); received {n}.",
         )
 
     r = returns.dropna()
@@ -52,9 +52,9 @@ def b1_window_sensitivity(
     years_full = round(n / ANN, 1)
 
     windows = {"full": {"years": years_full, "sharpe": round(sh_full, 3)}}
-    worst_infl = 0.0          # gonflement max (%) d'une sous-fenêtre
+    worst_infl = 0.0          # max inflation (%) of a sub-window
     worst_y: int | None = None
-    worst_regime = False      # True si full<=0 mais fenêtre courte>0 (edge de régime)
+    worst_regime = False      # True if full<=0 but short window>0 (regime edge)
 
     for y in windows_years:
         w = int(y * ANN)
@@ -65,7 +65,7 @@ def b1_window_sensitivity(
         if sh_full > 0:
             infl = (sh_w / sh_full - 1.0) * 100.0
         else:
-            # plein historique non rentable : toute fenêtre positive est un edge de régime
+            # full history unprofitable: any positive window is a regime edge
             infl = float("inf") if sh_w > 0 else 0.0
         if infl > worst_infl:
             worst_infl = infl
@@ -86,19 +86,19 @@ def b1_window_sensitivity(
     if worst_y is None:
         return CheckResult(
             _ID, "B", "PASS",
-            "Fenêtre stable : aucune sous-fenêtre courte plus flatteuse",
-            f"Sharpe plein historique {sh_full:.2f} sur {years_full} ans ; "
-            f"les sous-fenêtres testées ne le dépassent pas.",
+            "Stable window: no short sub-window more flattering",
+            f"Full history Sharpe {sh_full:.2f} over {years_full} yrs; "
+            f"tested sub-windows do not exceed it.",
             evidence,
         )
 
     if worst_regime:
         return CheckResult(
             _ID, "B", "FAIL",
-            f"Mirage : la stratégie ne 'marche' que sur la période récente ({_yr(worst_y)})",
-            f"Sharpe plein historique {sh_full:.2f} (<= 0), mais positif sur la "
-            f"fenêtre {_yr(worst_y)}. C'est un edge de RÉGIME, pas un edge robuste : "
-            f"il disparaît hors de sa fenêtre favorable.",
+            f"Mirage: strategy only 'works' on recent period ({_yr(worst_y)})",
+            f"Full history Sharpe {sh_full:.2f} (<= 0), but positive on "
+            f"{_yr(worst_y)} window. This is a REGIME edge, not robust: "
+            f"it disappears outside its favorable window.",
             evidence,
         )
 
@@ -106,22 +106,22 @@ def b1_window_sensitivity(
     if worst_infl >= fail_pct:
         status, verdict = "FAIL", "mirage"
     elif worst_infl >= warn_pct:
-        status, verdict = "WARN", "à surveiller"
+        status, verdict = "WARN", "watch carefully"
     else:
         return CheckResult(
             _ID, "B", "PASS",
-            f"Fenêtre honnête : gonflement max +{worst_infl:.0f}% (< {warn_pct:.0f}%)",
-            f"Sharpe plein {sh_full:.2f} ; meilleure sous-fenêtre ({_yr(worst_y)}) "
-            f"{sh_short:.2f}. Écart dans le bruit.",
+            f"Honest window: max inflation +{worst_infl:.0f}% (< {warn_pct:.0f}%)",
+            f"Full Sharpe {sh_full:.2f}; best sub-window ({_yr(worst_y)}) "
+            f"{sh_short:.2f}. Difference in noise.",
             evidence,
         )
 
     return CheckResult(
         _ID, "B", status,
-        f"Sharpe gonflé de +{worst_infl:.0f}% par la fenêtre {_yr(worst_y)} ({verdict})",
-        f"Plein historique ({years_full} ans) : Sharpe {sh_full:.2f}. "
-        f"Fenêtre {_yr(worst_y)} : Sharpe {sh_short:.2f}. "
-        f"Le chiffre 'vendable' vient de la fenêtre favorable — c'est la faille "
-        f"type 2.53 -> 1.22. Sizer et décider sur {sh_full:.2f}, pas sur {sh_short:.2f}.",
+        f"Sharpe inflated +{worst_infl:.0f}% by {_yr(worst_y)} window ({verdict})",
+        f"Full history ({years_full} yrs): Sharpe {sh_full:.2f}. "
+        f"{_yr(worst_y)} window: Sharpe {sh_short:.2f}. "
+        f"The 'sellable' number comes from the favorable window — classic flaw "
+        f"type 2.53 -> 1.22. Size and decide on {sh_full:.2f}, not {sh_short:.2f}.",
         evidence,
     )

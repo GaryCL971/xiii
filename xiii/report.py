@@ -1,8 +1,8 @@
 """
-xiii.report — format de verdict d'un audit XIII.
+xiii.report — verdict format for a XIII audit.
 
-Un audit = une liste de CheckResult. Chaque check répond PASS / WARN / FAIL / SKIP.
-Règle : un seul FAIL => l'audit échoue (`passed == False`). C'est un gate, pas un score.
+An audit = a list of CheckResult. Each check answers PASS / WARN / FAIL / SKIP.
+Rule: a single FAIL => the audit fails (`passed == False`). It's a gate, not a score.
 """
 from __future__ import annotations
 
@@ -26,17 +26,17 @@ class CheckResult:
 
     def __post_init__(self):
         if self.status not in STATUSES:
-            raise ValueError(f"status invalide: {self.status!r} (attendu {STATUSES})")
+            raise ValueError(f"invalid status: {self.status!r} (expected {STATUSES})")
 
 
 @dataclass
 class AuditReport:
     verdicts: list[CheckResult] = field(default_factory=list)
-    checks_total: int = 9           # nb de checks prévus au périmètre v0.1
+    checks_total: int = 9           # number of checks planned for v0.1 scope
 
     @property
     def passed(self) -> bool:
-        """True si aucun FAIL. Un gate binaire, pas un score."""
+        """True if no FAIL. A binary gate, not a score."""
         return not any(v.status == "FAIL" for v in self.verdicts)
 
     def _count(self, status: str) -> int:
@@ -57,7 +57,7 @@ class AuditReport:
 
     def print(self, stream=None) -> None:
         stream = stream or sys.stdout
-        # Robustesse console Windows (comme les scripts du labo)
+        # Windows console robustness (like lab scripts)
         try:
             stream.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
         except Exception:
@@ -68,10 +68,10 @@ class AuditReport:
         sub = "-" * W
         out = [
             line,
-            f"  XIII — Audit du Treizième Homme".ljust(W - 12) + "v0.1.0.dev0",
+            f"  XIII — Thirteenth Man Audit".ljust(W - 12) + "v0.1.0.dev0",
             line,
         ]
-        # ordre d'affichage : FAIL puis WARN puis SKIP puis PASS
+        # display order: FAIL then WARN then SKIP then PASS
         order = {"FAIL": 0, "WARN": 1, "SKIP": 2, "PASS": 3}
         for v in sorted(self.verdicts, key=lambda x: order[x.status]):
             code = v.check_id.split("_", 1)[0]   # "B1_window_sensitivity" -> "B1"
@@ -81,13 +81,13 @@ class AuditReport:
                     out.append(" " * 9 + wl)
             out.append("")
         out.append(sub)
-        verdict = "NE PAS DÉPLOYER" if not self.passed else "OK (sous réserve des checks restants)"
+        verdict = "DO NOT DEPLOY" if not self.passed else "OK (pending remaining checks)"
         out.append(
-            f"  Résultat : {self._count('FAIL')} FAIL · {self._count('WARN')} WARN · "
+            f"  Result: {self._count('FAIL')} FAIL · {self._count('WARN')} WARN · "
             f"{self._count('SKIP')} SKIP   ->  {verdict}"
         )
         out.append(
-            f"  Checks actifs : {len(self.verdicts)}/{self.checks_total} (v0.1 en cours)"
+            f"  Active checks: {len(self.verdicts)}/{self.checks_total} (v0.1 in progress)"
         )
         out.append(line)
         stream.write("\n".join(out) + "\n")

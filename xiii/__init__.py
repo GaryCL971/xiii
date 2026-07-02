@@ -1,12 +1,12 @@
 """
-XIII — le linter d'overfitting pour backtests.
-Le Protocole du Treizième Homme, automatisé.
+XIII — the overfitting linter for backtests.
+The Thirteenth Man Protocol, automated.
 
-Ce n'est ni un robot, ni un signal, ni une promesse de rendement : c'est un
-pair reviewer qui te dit par quoi ton backtest meurt AVANT que tu déploies.
+This is neither a robot, nor a signal, nor a promise of returns: it's a
+peer reviewer that tells you how your backtest dies BEFORE you deploy.
 
-Statut v0.1 : périmètre confirmé (voir SPEC_v0.1.md). BrokerConfig + primitives
-livrés ; l'implémentation des 9 checks est la session suivante.
+Status v0.1: scope confirmed (see SPEC_v0.1.md). BrokerConfig + primitives
+delivered; implementation of the 9 checks is the next session.
 """
 from __future__ import annotations
 
@@ -33,14 +33,14 @@ import pandas as pd
 
 
 def _to_returns(returns=None, equity=None, trades=None):
-    """Normalise l'entrée en série de rendements ~quotidiens (ou None si impossible)."""
+    """Normalizes input to series of ~daily returns (or None if impossible)."""
 
     if returns is not None:
         return pd.Series(returns).astype(float)
     if equity is not None:
         return pd.Series(equity).astype(float).pct_change().dropna()
     if trades is not None:
-        # v0.1 : chemin trades->rendements pas encore branché (nécessite un capital).
+        # v0.1: trades->returns path not yet wired (requires capital).
         return None
     return None
 
@@ -57,26 +57,26 @@ def audit(
     tp_pips=None,
     win_rate_backtest: float | None = None,
 ) -> AuditReport:
-    """Lance les checks automatisables du Treizième Homme sur un backtest.
+    """Launches the automatable checks of the Thirteenth Man on a backtest.
 
-    Entrées de performance (au moins une) : `returns` (rendements ~quotidiens),
-    `equity` (courbe d'équité -> convertie en rendements), ou `trades`.
+    Performance inputs (at least one): `returns` (~daily returns),
+    `equity` (equity curve -> converted to returns), or `trades`.
 
-    Checks v0.1 (voir SPEC §3), avec leurs entrées requises :
-      A1_dummy_scan            <- source_file                                    [ACTIF]
-      A3_series_alignment      <- source_file                                    [ACTIF]
-      G1_lookahead_scan        <- source_file                                    [ACTIF]
-      B1_window_sensitivity    <- returns|equity      # rattrape le mirage 2.53->1.22  [ACTIF]
-      B3_yearly_breakdown      <- returns|equity (datés)                         [ACTIF]
-      C1_sizing_vs_maxdd       <- equity + broker + deployed_sizing             [ACTIF]
-      C2_montecarlo_constraints<- trades + broker                               [ACTIF]
-      D2_spread_breakeven      <- sl_pips + tp_pips + broker                    [ACTIF]
+    v0.1 checks (see SPEC §3), with their required inputs:
+      A1_dummy_scan            <- source_file                                    [ACTIVE]
+      A3_series_alignment      <- source_file                                    [ACTIVE]
+      G1_lookahead_scan        <- source_file                                    [ACTIVE]
+      B1_window_sensitivity    <- returns|equity      # catches 2.53->1.22 mirage [ACTIVE]
+      B3_yearly_breakdown      <- returns|equity (dated)                         [ACTIVE]
+      C1_sizing_vs_maxdd       <- equity + broker + deployed_sizing             [ACTIVE]
+      C2_montecarlo_constraints<- trades + broker                               [ACTIVE]
+      D2_spread_breakeven      <- sl_pips + tp_pips + broker                    [ACTIVE]
       DE_portfolio_correlation <- portfolio
 
-    Une entrée absente => le check concerné renvoie SKIP (signalé), pas une erreur.
-    Renvoie un AuditReport (.print(), .to_json(), .passed, .verdicts).
+    Missing input => the corresponding check returns SKIP (flagged), not an error.
+    Returns an AuditReport (.print(), .to_json(), .passed, .verdicts).
 
-    STATUT v0.1.dev : 8/9 checks actifs (A1, A3, B1, B3, C1, C2, D2, G1). Reste DE.
+    STATUS v0.1.dev: 8/9 checks active (A1, A3, B1, B3, C1, C2, D2, G1). DE remaining.
     """
     from .checks.cost import d2_spread_breakeven
     from .checks.integrity import a1_dummy_scan, a3_series_alignment, g1_lookahead_scan
@@ -87,7 +87,7 @@ def audit(
 
     rets = _to_returns(returns=returns, equity=equity, trades=trades)
 
-    # Calculer win_rate si pas fournie
+    # Calculate win_rate if not provided
     wr = win_rate_backtest
     if wr is None and trades is not None and isinstance(trades, pd.DataFrame):
         if "pnl_usd" in trades.columns:

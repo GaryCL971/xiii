@@ -1,13 +1,13 @@
 """
-xiii.checks.sizing — section C du protocole (honnêteté du sizing).
+xiii.checks.sizing — section C of protocol (sizing honesty).
 
-C1_sizing_vs_maxdd : le check CRITIQUE du Treizième Homme.
+C1_sizing_vs_maxdd: the CRITICAL check of the Thirteenth Man.
 
-La faille réelle : « mon backtest maxDD = -2.6 %, à 1.08x je passe sous -10% FTMO ».
-Reason : le backtest mesurait sur une fenêtre courte ; le maxDD réel sur 16 ans = -10.9 %.
-À 1.08×, tu touches -11.8 % → breach.
+Real flaw: "my backtest maxDD = -2.6%, at 1.08x I go below -10% FTMO".
+Reason: backtest measured on a short window; real maxDD over 16 yrs = -10.9%.
+At 1.08×, you hit -11.8% → breach.
 
-C1 prend le sizing déployé et valide qu'il respecte les limites du broker.
+C1 takes the deployed sizing and validates that it respects broker limits.
 """
 from __future__ import annotations
 
@@ -27,49 +27,49 @@ def c1_sizing_vs_maxdd(
     broker: BrokerConfig | None,
     deployed_sizing: float = 1.0,
 ) -> CheckResult:
-    """Valide que le sizing déployé respecte les limites de drawdown du broker.
+    """Validates that deployed sizing respects broker drawdown limits.
 
-    Entrées :
-      - equity : courbe d'équité (rendements déduits)
-      - broker : BrokerConfig (FTMO, Vantage, etc.)
-      - deployed_sizing : multiplicateur actuellement déployé (ex: 1.08×)
+    Inputs:
+      - equity: equity curve (returns derived)
+      - broker: BrokerConfig (FTMO, Vantage, etc.)
+      - deployed_sizing: multiplier currently deployed (e.g., 1.08×)
 
-    Logique :
-      1. Reconstruit les rendements depuis equity
-      2. Calcule le maxDD réel de la courbe
-      3. Applique le sizing : maxDD * deployed_sizing
-      4. Valide vs limites broker (FTMO: -10%, Vantage: n/a)
+    Logic:
+      1. Reconstructs returns from equity
+      2. Calculates real maxDD of the curve
+      3. Applies sizing: maxDD * deployed_sizing
+      4. Validates vs broker limits (FTMO: -10%, Vantage: n/a)
     """
     _id = "C1_sizing_vs_maxdd"
 
     if equity is None or broker is None:
         return CheckResult(
             _id, "C", "SKIP",
-            "Entrées manquantes",
-            "Passe equity (courbe d'équité) + broker (FTMO|VANTAGE). "
-            "C1 valide que le sizing respecte les limites de drawdown.",
+            "Missing inputs",
+            "Pass equity (equity curve) + broker (FTMO|VANTAGE). "
+            "C1 validates that sizing respects drawdown limits.",
         )
 
     if not broker.has_risk_rules:
         return CheckResult(
             _id, "C", "SKIP",
-            f"Broker '{broker.name}' n'a pas de règles de risque",
-            "Vantage n'impose pas de limite DD (compte réel libre). "
-            "FTMO impose -10% → C1 s'applique.",
+            f"Broker '{broker.name}' has no risk rules",
+            "Vantage does not impose DD limit (free real account). "
+            "FTMO enforces -10% → C1 applies.",
         )
 
-    # Reconstruire les rendements
+    # Reconstruct returns
     equity_clean = equity.dropna().astype(float)
     if len(equity_clean) < 252:
         return CheckResult(
             _id, "C", "SKIP",
-            "Historique équité insuffisant",
-            f"Besoin >= 1 an (~252 jours) ; reçu {len(equity_clean)}.",
+            "Insufficient equity history",
+            f"Requires >= 1 yr (~252 days); received {len(equity_clean)}.",
         )
 
     returns = equity_clean.pct_change().dropna()
 
-    # Mesurer maxDD réel
+    # Measure real maxDD
     dd_base = max_drawdown(returns)
     dd_sized = dd_base * deployed_sizing
 
@@ -81,33 +81,33 @@ def c1_sizing_vs_maxdd(
     }
 
     limit = broker.max_total_drawdown
-    margin = dd_sized - limit  # marge (négatif = safe, positif = breach)
+    margin = dd_sized - limit  # margin (negative = safe, positive = breach)
 
     if dd_sized >= limit:
         return CheckResult(
             _id, "C", "FAIL",
-            f"Sizing dépasserait la limite {broker.name}",
+            f"Sizing would exceed {broker.name} limit",
             f"Base maxDD: {dd_base*100:.1f}%. "
-            f"Après sizing ×{deployed_sizing}: {dd_sized*100:.1f}%. "
-            f"Limite {broker.name}: {limit*100:.1f}%. "
-            f"→ BREACH DE {margin*100:.1f} pp. Réduire le sizing ou l'edge.",
+            f"After sizing ×{deployed_sizing}: {dd_sized*100:.1f}%. "
+            f"{broker.name} limit: {limit*100:.1f}%. "
+            f"→ BREACH BY {margin*100:.1f} pp. Reduce sizing or edge.",
             evidence,
         )
 
-    if margin > -0.02:  # moins de 2 pp de marge
+    if margin > -0.02:  # less than 2 pp margin
         return CheckResult(
             _id, "C", "WARN",
-            f"Marge DD serrée : {-margin*100:.1f} pp sous la limite",
-            f"Un glissement du maxDD de +{-margin*100:.1f} pp → breach. "
-            f"Peu de buffer. À {-margin*100:.1f} pp près du falaise.",
+            f"Tight DD margin: {-margin*100:.1f} pp under limit",
+            f"A maxDD slip of +{-margin*100:.1f} pp → breach. "
+            f"Little buffer. {-margin*100:.1f} pp away from cliff.",
             evidence,
         )
 
     return CheckResult(
         _id, "C", "PASS",
-        f"Sizing conforme : {-margin*100:.1f} pp de marge vs limite {broker.name}",
+        f"Sizing compliant: {-margin*100:.1f} pp margin vs {broker.name} limit",
         f"Base maxDD {dd_base*100:.1f}%, "
-        f"après sizing ×{deployed_sizing} → {dd_sized*100:.1f}%. "
-        f"Limite: {limit*100:.1f}%. Sûr.",
+        f"after sizing ×{deployed_sizing} → {dd_sized*100:.1f}%. "
+        f"Limit: {limit*100:.1f}%. Safe.",
         evidence,
     )

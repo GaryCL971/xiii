@@ -1,26 +1,26 @@
 """
-xiii.metrics — primitives de performance, EXTRAITES telles quelles du labo.
+xiii.metrics — performance primitives, EXTRACTED as-is from the lab.
 
-Source : research/sizing_fix.py. Logique inchangée : ce sont exactement les
-calculs qui ont servi à débusquer le mirage (Sharpe annoncé 2.53 -> honnête 1.22).
-Fonctions pures, sans dépendance autre que numpy/pandas.
+Source: research/sizing_fix.py. Logic unchanged: these are exactly the
+calculations that uncovered the mirage (Sharpe claimed 2.53 -> honest 1.22).
+Pure functions, no dependencies other than numpy/pandas.
 """
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 
-ANN = 252  # jours de trading par an
+ANN = 252  # trading days per year
 
 
 def max_drawdown(returns: pd.Series) -> float:
-    """Drawdown maximal (négatif) d'une série de rendements périodiques."""
+    """Maximum (negative) drawdown from a series of periodic returns."""
     eq = (1 + returns).cumprod()
     return float((eq / eq.cummax() - 1).min())
 
 
 def annualized_return(returns: pd.Series, ann: int = ANN) -> float:
-    """CAGR à partir d'une série de rendements périodiques."""
+    """CAGR from a series of periodic returns."""
     n = len(returns)
     if n == 0:
         return float("nan")
@@ -30,7 +30,7 @@ def annualized_return(returns: pd.Series, ann: int = ANN) -> float:
 
 
 def sharpe(returns: pd.Series, ann: int = ANN) -> float:
-    """Sharpe annualisé (rf=0). 0.0 si volatilité nulle."""
+    """Annualized Sharpe (rf=0). 0.0 if volatility is zero."""
     sd = returns.std()
     return float(returns.mean() / sd * np.sqrt(ann)) if sd > 0 else 0.0
 
@@ -42,17 +42,17 @@ def k_for_dd(
     hi: float = 5.0,
     iters: int = 60,
 ) -> float:
-    """Multiplicateur de sizing k tel que maxDD(k * returns) = target_dd.
+    """Sizing multiplier k such that maxDD(k * returns) = target_dd.
 
-    Recherche dichotomique : avec le compounding, maxDD n'est pas linéaire en k,
-    on résout donc numériquement. C'est le cœur du check C1 (sizing honnête) :
-    on compare le k qui respecte la limite broker au sizing réellement déployé.
+    Binary search: with compounding, maxDD is not linear in k,
+    so we solve numerically. This is the core of check C1 (honest sizing):
+    we compare the k that respects the broker limit against actual deployed sizing.
 
-    Extrait de research/sizing_fix.py (fonction k_for_dd, logique identique).
+    Extracted from research/sizing_fix.py (k_for_dd function, identical logic).
     """
     for _ in range(iters):
         mid = (lo + hi) / 2
-        if max_drawdown(mid * returns) < target_dd:  # trop de DD -> réduire k
+        if max_drawdown(mid * returns) < target_dd:  # too much DD -> reduce k
             hi = mid
         else:
             lo = mid

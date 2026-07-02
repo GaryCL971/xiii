@@ -1,20 +1,20 @@
 """
-xiii.checks.integrity — sections A et G du protocole (analyse statique du source).
+xiii.checks.integrity — sections A and G of protocol (static source analysis).
 
-Ces trois checks lisent le CODE, pas les données : ils attrapent le mensonge
-avant même qu'un chiffre soit calculé.
+These three checks read CODE, not data: they catch the lie
+before any number is even calculated.
 
-  A1_dummy_scan       : stand-ins factices dans le script qui produit LE chiffre.
-                        (Faille réelle : la brique CPI du livrable était
-                        np.random.normal(0.0005, 0.0008) — un générateur aléatoire
-                        vendu comme un backtest.)
-  A3_series_alignment : concat().dropna() / join="inner" qui effondre la fenêtre
-                        quand on aligne une série sparse sur une série dense.
-                        (Faille réelle : fenêtre tombée à 23 jours.)
-  G1_lookahead_scan   : références au futur — .shift(-n), rolling(center=True).
+  A1_dummy_scan       : dummy stand-ins in the script that produces THE number.
+                        (Real flaw: the CPI brick of the deliverable was
+                        np.random.normal(0.0005, 0.0008) — a random number generator
+                        sold as a backtest.)
+  A3_series_alignment : concat().dropna() / join="inner" that collapses the window
+                        when aligning a sparse series to a dense one.
+                        (Real flaw: window collapsed to 23 days.)
+  G1_lookahead_scan   : future references — .shift(-n), rolling(center=True).
 
-Suppression volontaire : ajouter `# xiii: ok` en fin de ligne pour marquer un
-usage légitime (ex. np.random dans un bootstrap Monte Carlo assumé).
+Intentional suppression: add `# xiii: ok` at end of line to mark legitimate
+usage (e.g., np.random in an intended Monte Carlo bootstrap).
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ _SUPPRESS = "xiii: ok"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Utilitaires de scan
+# Scan utilities
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _read_lines(source_file) -> list[str] | None:
@@ -38,7 +38,7 @@ def _read_lines(source_file) -> list[str] | None:
 
 
 def _scan_lines(lines: list[str], patterns: list[tuple[str, re.Pattern]]):
-    """Scan ligne à ligne. -> [(lineno, extrait, nom_pattern)]"""
+    """Line-by-line scan. -> [(lineno, excerpt, pattern_name)]"""
     hits = []
     for i, line in enumerate(lines, 1):
         if _SUPPRESS in line:
@@ -52,9 +52,9 @@ def _scan_lines(lines: list[str], patterns: list[tuple[str, re.Pattern]]):
 
 def _scan_window(lines: list[str], patterns: list[tuple[str, re.Pattern]],
                  window: int = 3, anchor: re.Pattern | None = None):
-    """Scan sur fenêtre glissante de `window` lignes jointes (attrape le multi-ligne).
-    Déduplique les fenêtres qui se chevauchent ; `anchor` désigne, dans la fenêtre,
-    la ligne à laquelle attribuer le hit (ex. celle qui contient `concat`)."""
+    """Scan over sliding window of `window` joined lines (catches multi-line).
+    Deduplicates overlapping windows; `anchor` designates, in the window,
+    the line to attribute the hit to (e.g., the one containing `concat`)."""
     hits = []
     last: dict[str, int] = {}
     for i in range(len(lines)):
@@ -63,7 +63,7 @@ def _scan_window(lines: list[str], patterns: list[tuple[str, re.Pattern]],
         chunk = " ".join(l.strip() for l in lines[i:i + window])
         for name, rx in patterns:
             if rx.search(chunk):
-                j = i  # ligne attribuée : celle de l'ancre si trouvée dans la fenêtre
+                j = i  # line attributed: anchor's line if found in window
                 if anchor is not None:
                     for k in range(i, min(i + window, len(lines))):
                         if anchor.search(lines[k]):
@@ -80,17 +80,17 @@ def _scan_window(lines: list[str], patterns: list[tuple[str, re.Pattern]],
 def _skip(check_id: str, section: str) -> CheckResult:
     return CheckResult(
         check_id, section, "SKIP",
-        "Pas de code source fourni",
-        "Passe source_file=<chemin du script qui produit le chiffre headline> "
-        "pour activer ce check.",
+        "No source code provided",
+        "Pass source_file=<path to script that produces the headline number> "
+        "to enable this check.",
     )
 
 
 def _unreadable(check_id: str, section: str, source_file) -> CheckResult:
     return CheckResult(
         check_id, section, "SKIP",
-        "Code source illisible",
-        f"Impossible de lire {source_file!r}.",
+        "Source code unreadable",
+        f"Cannot read {source_file!r}.",
     )
 
 
@@ -99,7 +99,7 @@ def _evidence(hits) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# A1 — stand-ins factices
+# A1 — dummy stand-ins
 # ─────────────────────────────────────────────────────────────────────────────
 
 _A1_FAIL = [
@@ -115,7 +115,7 @@ _A1_WARN = [
 
 
 def a1_dummy_scan(source_file=None) -> CheckResult:
-    """§A : le chiffre headline vient-il de données RÉELLES ?"""
+    """§A : does the headline number come from REAL data?"""
     _id = "A1_dummy_scan"
     if source_file is None:
         return _skip(_id, "A")
@@ -131,35 +131,35 @@ def a1_dummy_scan(source_file=None) -> CheckResult:
         ln, code, name = hard[0]
         return CheckResult(
             _id, "A", "FAIL",
-            f"Stand-in factice détecté : {name} (l.{ln}" +
-            (f", +{len(hard)-1} autres" if len(hard) > 1 else "") + ")",
+            f"Dummy stand-in detected: {name} (l.{ln}" +
+            (f", +{len(hard)-1} others" if len(hard) > 1 else "") + ")",
             f"l.{ln}: `{code}`\n"
-            "Le chiffre headline risque de sortir d'un générateur, pas du marché — "
-            "c'est la faille de la brique CPI (np.random vendu comme backtest). "
-            "Si l'usage est légitime (bootstrap Monte Carlo), marque la ligne "
-            "`# xiii: ok` et relance.",
+            "The headline number risks coming from a generator, not the market — "
+            "this is the flaw of the CPI brick (np.random sold as backtest). "
+            "If the usage is legitimate (Monte Carlo bootstrap), mark the line "
+            "`# xiii: ok` and rerun.",
             ev,
         )
     if soft:
         ln, code, name = soft[0]
         return CheckResult(
             _id, "A", "WARN",
-            f"{len(soft)} marqueur(s) de chantier ({name}…) dans le script du chiffre",
+            f"{len(soft)} work-in-progress marker(s) ({name}...) in the number script",
             f"l.{ln}: `{code}`\n"
-            "Un TODO/FIXME dans le chemin qui produit LE chiffre = le livrable "
-            "n'est pas fini. Résous ou justifie avant de sizer dessus.",
+            "A TODO/FIXME in the path that produces THE number = the deliverable "
+            "is not finished. Resolve or justify before sizing on it.",
             ev,
         )
     return CheckResult(
         _id, "A", "PASS",
-        "Aucun stand-in factice (np.random/dummy/mock/placeholder/TODO/FIXME)",
-        "Le script du chiffre headline ne contient pas de données de substitution.",
+        "No dummy stand-ins (np.random/dummy/mock/placeholder/TODO/FIXME)",
+        "The headline number script contains no substitute data.",
         ev,
     )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# A3 — alignement de séries (l'inner-join qui effondre la fenêtre)
+# A3 — series alignment (the inner-join that collapses the window)
 # ─────────────────────────────────────────────────────────────────────────────
 
 _A3_PATTERNS = [
@@ -170,7 +170,7 @@ _A3_PATTERNS = [
 
 
 def a3_series_alignment(source_file=None) -> CheckResult:
-    """§A : les séries sparse/denses sont-elles alignées sans effondrer la fenêtre ?"""
+    """§A : are sparse/dense series aligned without collapsing the window?"""
     _id = "A3_series_alignment"
     if source_file is None:
         return _skip(_id, "A")
@@ -186,25 +186,25 @@ def a3_series_alignment(source_file=None) -> CheckResult:
         ln, code, name = hits[0]
         return CheckResult(
             _id, "A", "WARN",
-            f"Alignement suspect : {name} (l.{ln}" +
-            (f", +{len(hits)-1} autres" if len(hits) > 1 else "") + ")",
+            f"Suspicious alignment: {name} (l.{ln}" +
+            (f", +{len(hits)-1} others" if len(hits) > 1 else "") + ")",
             f"l.{ln}: `{code}`\n"
-            "Si une série est sparse (ex. mensuelle) et l'autre dense (quotidienne), "
-            "l'inner-join réduit la fenêtre à l'intersection — faille réelle : fenêtre "
-            "tombée à 23 jours. Préférer `reindex(index_commun).fillna(0)` et vérifier "
-            "len() avant/après l'alignement. Légitime ? Marque `# xiii: ok`.",
+            "If one series is sparse (e.g., monthly) and the other dense (daily), "
+            "the inner-join reduces the window to the intersection — real flaw: window "
+            "collapsed to 23 days. Prefer `reindex(common_index).fillna(0)` and verify "
+            "len() before/after alignment. Legitimate? Mark `# xiii: ok`.",
             ev,
         )
     return CheckResult(
         _id, "A", "PASS",
-        "Aucun anti-pattern d'alignement (concat/merge + dropna, join inner)",
-        "Pas d'effondrement de fenêtre détecté à l'alignement des séries.",
+        "No alignment anti-patterns (concat/merge + dropna, join inner)",
+        "No window collapse detected at series alignment.",
         ev,
     )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# G1 — lookahead (le futur qui fuite dans le signal)
+# G1 — lookahead (future that leaks into the signal)
 # ─────────────────────────────────────────────────────────────────────────────
 
 _G1_PATTERNS = [
@@ -214,7 +214,7 @@ _G1_PATTERNS = [
 
 
 def g1_lookahead_scan(source_file=None) -> CheckResult:
-    """§G : le signal de la barre N n'utilise-t-il QUE de l'information <= N ?"""
+    """§G : does the signal at bar N use ONLY information <= N?"""
     _id = "G1_lookahead_scan"
     if source_file is None:
         return _skip(_id, "G")
@@ -229,19 +229,19 @@ def g1_lookahead_scan(source_file=None) -> CheckResult:
         ln, code, name = hits[0]
         return CheckResult(
             _id, "G", "FAIL",
-            f"Lookahead probable : {name} (l.{ln}" +
-            (f", +{len(hits)-1} autres" if len(hits) > 1 else "") + ")",
+            f"Probable lookahead: {name} (l.{ln}" +
+            (f", +{len(hits)-1} others" if len(hits) > 1 else "") + ")",
             f"l.{ln}: `{code}`\n"
-            "`.shift(-n)` aligne le FUTUR sur la barre courante ; "
-            "`rolling(center=True)` centre la fenêtre sur la barre (moitié future). "
-            "Un backtest qui voit le futur est irréproduisible en live. "
-            "Usage légitime (labels d'entraînement, etc.) ? Marque `# xiii: ok`.",
+            "`.shift(-n)` aligns the FUTURE onto the current bar; "
+            "`rolling(center=True)` centers the window on the bar (half future). "
+            "A backtest that sees the future is irreproducible live. "
+            "Legitimate usage (training labels, etc.)? Mark `# xiii: ok`.",
             ev,
         )
     return CheckResult(
         _id, "G", "PASS",
-        "Aucune référence au futur détectée (.shift(-n), rolling centré)",
-        "Le signal semble causal — à confirmer par relecture (le scan statique "
-        "ne voit pas tous les canaux de fuite).",
+        "No future references detected (.shift(-n), centered rolling)",
+        "The signal appears causal — to be confirmed by code review (static scan "
+        "does not see all leakage channels).",
         ev,
     )

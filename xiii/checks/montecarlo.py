@@ -1,17 +1,17 @@
 """
-xiii.checks.montecarlo — section C du protocole (Monte Carlo des contraintes broker).
+xiii.checks.montecarlo — section C of protocol (Monte Carlo broker constraints).
 
-C2_montecarlo_constraints : bootstrap de la séquence de trades réelle pour valider
-probabilités sous les contraintes du broker (FTMO : pass challenge, respirer max DD,
+C2_montecarlo_constraints: bootstrap of real trade sequence to validate
+probabilities under broker constraints (FTMO: pass challenge, respect maxDD,
 max daily loss, etc.).
 
-Logique : un backtest 50 trades / 4 mois peut passer le portfolio en moyenne, mais
-un ordre de magnitude faible du tirage (50 permutations) peut faire bugger les limites.
-Monte Carlo simule 1000 trajectoires possibles avec la même séquence de P&L, révèle
-le pire cas.
+Logic: a backtest with 50 trades / 4 months may pass on average, but
+a low-magnitude draw (50 permutations) can blow limits.
+Monte Carlo simulates 1000 possible trajectories with same P&L sequence, reveals
+worst case.
 
-NB : v0.1 = version light (pas de prise en compte des autocorrélations dans l'ordre).
-Full = pattern-aware shuffling pour crise.
+NB: v0.1 = light version (no autocorrelation-aware order adjustment).
+Full = pattern-aware shuffling for crisis.
 """
 from __future__ import annotations
 
@@ -31,22 +31,22 @@ def c2_montecarlo_constraints(
     n_sims: int = 1000,
     seed: int = 13,
 ) -> CheckResult:
-    """Bootstrap Monte Carlo des contraintes broker.
+    """Bootstrap Monte Carlo of broker constraints.
 
-    Entrées :
-      - trades : DataFrame avec colonnes [datetime, pnl_usd] (au moins)
-      - broker : BrokerConfig
-      - deployed_sizing : multiplicateur (ex: 1.08)
-      - n_sims : nombre de trajectoires à simuler (défaut 1000)
+    Inputs:
+      - trades: DataFrame with columns [datetime, pnl_usd] (at least)
+      - broker: BrokerConfig
+      - deployed_sizing: multiplier (e.g., 1.08)
+      - n_sims: number of trajectories to simulate (default 1000)
 
-    Logique :
-      1. Charge la séquence de P&L réels
-      2. Ré-échantillonne (permute) N fois
-      3. Pour chaque trajet, vérifie:
+    Logic:
+      1. Load real P&L sequence
+      2. Re-sample (permute) N times
+      3. For each trajectory, check:
          - maxDD (FTMO: <= -10%)
-         - maxDD quotidien (FTMO: <= -5%)
-         - profit cumulé >= objectif (FTMO: +10%)
-      4. Rapporte P(pass challenge), P(breach DD), P(breach daily)
+         - daily maxDD (FTMO: <= -5%)
+         - cumulative profit >= target (FTMO: +10%)
+      4. Report P(pass challenge), P(breach DD), P(breach daily)
     """
     _id = "C2_montecarlo_constraints"
 
@@ -54,19 +54,19 @@ def c2_montecarlo_constraints(
         n = 0 if trades is None else len(trades)
         return CheckResult(
             _id, "C", "SKIP",
-            "Données trades insuffisantes",
-            f"Besoin >= 10 trades ; reçu {n}. "
-            "C2 simule 1000 réordonnances pour tester robustesse vs limites broker.",
+            "Insufficient trade data",
+            f"Requires >= 10 trades; received {n}. "
+            "C2 simulates 1000 re-orderings to test robustness vs broker limits.",
         )
 
     if not broker.has_risk_rules:
         return CheckResult(
             _id, "C", "SKIP",
-            f"Broker '{broker.name}' n'a pas de règles de risque",
-            "Vantage n'a pas de limites FTMO. C2 s'applique à FTMO.",
+            f"Broker '{broker.name}' has no risk rules",
+            "Vantage has no FTMO limits. C2 applies to FTMO.",
         )
 
-    # Valider que trades a une colonne pnl ou similaire
+    # Validate that trades has a pnl column or similar
     pnl_col = None
     for col in ["pnl_usd", "pnl", "profit"]:
         if col in trades.columns:
@@ -75,14 +75,14 @@ def c2_montecarlo_constraints(
     if pnl_col is None:
         return CheckResult(
             _id, "C", "SKIP",
-            "Colonne P&L non trouvée",
-            "Trades doit contenir pnl_usd, pnl, ou profit.",
+            "P&L column not found",
+            "Trades must contain pnl_usd, pnl, or profit.",
         )
 
     pnl = trades[pnl_col].values * deployed_sizing
     n_trades = len(pnl)
 
-    # Paramètres FTMO
+    # FTMO parameters
     max_total_dd = broker.max_total_drawdown or -0.10
     max_daily_dd = broker.max_daily_loss or -0.05
     profit_target = broker.profit_target or 0.10
@@ -97,22 +97,22 @@ def c2_montecarlo_constraints(
     }
 
     for _ in range(n_sims):
-        # Permutation aléatoire de la séquence P&L
+        # Random permutation of P&L sequence
         shuffled = rng.permutation(pnl)
 
-        # Trajectoire cumulée
+        # Cumulative trajectory
         equity = initial_capital + np.cumsum(shuffled)
         peak = np.maximum.accumulate(equity)
         dd = (equity - peak) / initial_capital
         total_dd = dd.min()
 
-        # Daily max loss (simulation simplifiée : pire trade en un jour)
+        # Daily max loss (simplified simulation: worst trade in one day)
         daily_dd = pnl.min() / initial_capital
 
-        # Profit final
+        # Final profit
         final_pnl = shuffled.sum()
 
-        # Vérify contraintes
+        # Verify constraints
         pass_total_dd = total_dd >= max_total_dd
         pass_daily_dd = daily_dd >= max_daily_dd
         pass_profit = final_pnl >= profit_target * initial_capital
@@ -126,7 +126,7 @@ def c2_montecarlo_constraints(
         if not pass_profit:
             results["breach_profit"] += 1
 
-    # Probabilités
+    # Probabilities
     p_pass = results["pass_challenge"] / n_sims
     p_breach_total_dd = results["breach_total_dd"] / n_sims
     p_breach_daily_dd = results["breach_daily_dd"] / n_sims
@@ -144,26 +144,26 @@ def c2_montecarlo_constraints(
     if p_pass < 0.5:
         return CheckResult(
             _id, "C", "FAIL",
-            f"Monte Carlo : P(pass challenge) = {p_pass:.1%} (< 50%)",
-            f"Sur 1000 réordonnances, seules {results['pass_challenge']} passent FTMO. "
-            f"Votre séquence de trades est trop sensible à l'ordre. "
-            f"Risque : si le marché perm favorise une mauvaise séquence, breach probable.",
+            f"Monte Carlo: P(pass challenge) = {p_pass:.1%} (< 50%)",
+            f"Over 1000 re-orderings, only {results['pass_challenge']} pass FTMO. "
+            f"Your trade sequence is too order-sensitive. "
+            f"Risk: if market randomization favors bad sequence, breach likely.",
             evidence,
         )
 
     if p_breach_total_dd > 0.2:
         return CheckResult(
             _id, "C", "WARN",
-            f"Monte Carlo : P(breach maxDD) = {p_breach_total_dd:.1%}",
-            f"{int(results['breach_total_dd'])} / {n_sims} runs dépassent -10%. "
-            f"Un risque significatif : la séquence compte.",
+            f"Monte Carlo: P(breach maxDD) = {p_breach_total_dd:.1%}",
+            f"{int(results['breach_total_dd'])} / {n_sims} runs exceed -10%. "
+            f"Significant risk: sequence matters.",
             evidence,
         )
 
     return CheckResult(
         _id, "C", "PASS",
-        f"Monte Carlo robuste : P(pass challenge) = {p_pass:.1%}",
-        f"{results['pass_challenge']} / {n_sims} trajectoires passent FTMO. "
-        f"Votre séquence de trades est robuste aux réordonnances.",
+        f"Monte Carlo robust: P(pass challenge) = {p_pass:.1%}",
+        f"{results['pass_challenge']} / {n_sims} trajectories pass FTMO. "
+        f"Your trade sequence is robust to re-orderings.",
         evidence,
     )

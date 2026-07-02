@@ -1,11 +1,11 @@
 """
-xiii.checks.yearly — section B du protocole (honnêteté année par année).
+xiii.checks.yearly — section B of protocol (year-by-year honesty).
 
-B3_yearly_breakdown : détecte les brèches annuelles (années négatives, breaches
-de drawdown) qui révèlent un edge fragile ou régime-dépendant.
+B3_yearly_breakdown: detects annual breaches (negative years, drawdown breaches)
+that reveal a fragile or regime-dependent edge.
 
-Logique : si une stratégie a 16 ans de données mais 2 années sont catastrophiques,
-le Sharpe moyen cache le vrai risque.
+Logic: if a strategy has 16 years of data but 2 years are catastrophic,
+the average Sharpe masks the true risk.
 """
 from __future__ import annotations
 
@@ -21,31 +21,31 @@ def b3_yearly_breakdown(
     returns: pd.Series | None,
     min_obs_per_year: int = 50,
 ) -> CheckResult:
-    """Décompte année par année. Signale chaque année négative / chaque breach.
+    """Year-by-year breakdown. Flags each negative year / each breach.
 
-    Détecte : une stratégie « rentable en moyenne » mais cassée certaines années.
-    Typique du mirage : bon sur 2023-2025, catastrophique sur 2015.
+    Detects: a strategy 'profitable on average' but broken in some years.
+    Typical of mirage: good on 2023-2025, catastrophic on 2015.
     """
     _id = "B3_yearly_breakdown"
     if returns is None or len(returns.dropna()) < min_obs_per_year:
         n = 0 if returns is None else len(returns.dropna())
         return CheckResult(
             _id, "B", "SKIP",
-            "Historique insuffisant pour décompte année par année",
-            f"Requiert >= {min_obs_per_year} points (~3 mois quotidien) ; reçu {n}.",
+            "Insufficient history for year-by-year breakdown",
+            f"Requires >= {min_obs_per_year} points (~3 months daily); received {n}.",
         )
 
     r = returns.dropna()
     if not isinstance(r.index, pd.DatetimeIndex):
         return CheckResult(
             _id, "B", "SKIP",
-            "Index non daté",
-            "Besoin d'un index datetime pour grouper par année. "
-            "Passe `equity` plutôt que `returns` si l'index est déduit d'une courbe.",
+            "Index not dated",
+            "Need a datetime index to group by year. "
+            "Pass `equity` instead of `returns` if index is derived from a curve.",
         )
 
     yearly = {}
-    bad_years = []  # années négatives ou breaches
+    bad_years = []  # negative years or breaches
     for year, group in r.groupby(r.index.year):
         if len(group) < min_obs_per_year:
             continue
@@ -69,8 +69,8 @@ def b3_yearly_breakdown(
     if not yearly:
         return CheckResult(
             _id, "B", "SKIP",
-            "Pas d'année complète",
-            "Chaque année doit avoir >= {min_obs_per_year} points.",
+            "No complete year",
+            "Each year must have >= {min_obs_per_year} points.",
         )
 
     if bad_years:
@@ -79,22 +79,22 @@ def b3_yearly_breakdown(
             summary.append(f"{year}: {reason} (return {ann_ret*100:+.1f}%, DD {dd*100:.1f}%)")
         detail = ", ".join(summary)
         if len(bad_years) > 2:
-            detail += f", +{len(bad_years)-2} autres"
+            detail += f", +{len(bad_years)-2} others"
 
         status = "FAIL" if len(bad_years) >= 2 else "WARN"
         return CheckResult(
             _id, "B", status,
-            f"{len(bad_years)} année(s) problématique(s) : {detail}",
-            f"Une stratégie 'robuste' ne devrait pas avoir d'années en perte totale. "
-            f"2+ mauvaises années → edge fragile ou régime-dépendant. "
-            f"Investiguer : est-ce une crise de marché (2008, 2020) ou un vrai problème du signal?",
+            f"{len(bad_years)} problematic year(s): {detail}",
+            f"A 'robust' strategy should not have years of total loss. "
+            f"2+ bad years → fragile edge or regime-dependent. "
+            f"Investigate: is this a market crisis (2008, 2020) or a real signal problem?",
             evidence,
         )
 
     return CheckResult(
         _id, "B", "PASS",
-        f"Décompte année par année : toutes positives, maxDD acceptable",
-        f"{len(yearly)} années analysées, toutes avec Sharpe >= 0 et DD >= -10%. "
-        f"Lire le détail pour identifier les années faibles (< Sharpe 1.0).",
+        f"Year-by-year breakdown: all positive, maxDD acceptable",
+        f"{len(yearly)} years analyzed, all with Sharpe >= 0 and DD >= -10%. "
+        f"Check detail to identify weak years (< Sharpe 1.0).",
         evidence,
     )
