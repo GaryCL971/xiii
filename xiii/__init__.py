@@ -10,8 +10,10 @@ delivered; implementation of the 9 checks is the next session.
 """
 from __future__ import annotations
 
-from . import brokers, metrics
+from . import brokers, dataqc, metrics, registry
 from .brokers import FTMO, VANTAGE, BrokerConfig, InstrumentCost
+from .dataqc import DataQCReport
+from .registry import ExperimentRecord, ExperimentRegistry
 from .report import AuditReport, CheckResult
 
 __version__ = "0.1.0.dev0"
@@ -19,11 +21,16 @@ __version__ = "0.1.0.dev0"
 __all__ = [
     "audit",
     "brokers",
+    "dataqc",
+    "DataQCReport",
     "metrics",
+    "registry",
     "BrokerConfig",
     "InstrumentCost",
     "AuditReport",
     "CheckResult",
+    "ExperimentRecord",
+    "ExperimentRegistry",
     "FTMO",
     "VANTAGE",
 ]
