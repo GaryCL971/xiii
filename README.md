@@ -32,18 +32,24 @@ H. Pre-mortem              → write "how this dies" BEFORE going live
 ### Install
 
 ```bash
-pip install xiii
+pip install git+https://github.com/GaryCL971/xiii.git
 ```
+
+Not on PyPI yet — the name is reserved for the first stable release.
 
 ### Audit Your Backtest
 
 ```bash
-# Minimal (checks B1: window mirage, G1: lookahead)
-xiii.audit equity.csv
+# Minimal (checks B1: window mirage, B3: yearly breakdown)
+xiii audit equity.csv
 
 # Full (with broker rules, spread cost, sizing)
-xiii.audit equity.csv trades.csv --broker ftmo --deployed-sizing 1.08
+xiii audit equity.csv trades.csv --source strategy.py --broker ftmo --deployed-sizing 1.08
 ```
+
+`equity.csv` is two columns, `date,equity`. Exit code is `0` when the audit passes and
+`1` when any check fails, so it gates a CI pipeline as-is. `--json` emits the full report
+instead of the readable one. `xiii audit --help` lists every flag.
 
 ### Python API
 
