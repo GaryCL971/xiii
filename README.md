@@ -88,10 +88,10 @@ print(json.dumps(json.loads(report.to_json()), indent=2))
 
 | Check | The Lie | What XIII Does |
 |-------|---------|---|
-| **B1** | Sharpe 2.53 on 2.3 years, but 1.22 on 16 years | Compares full history vs lucky windows; flags +49% inflation |
+| **B1** | Sharpe 2.53 on a lucky 2.3-year window collapsed once measured on the full history | Compares full history vs recent windows; flags inflated recent-window Sharpe |
 | **A1** | Backtest data is `np.random.normal(0.0005, 0.0008)` | Scans code for dummy data, generators, placeholders |
 | **A3** | `concat().dropna()` collapses monthly×daily to 23 days | Detects silent inner-joins that erase history |
-| **C1** | Sizing 1.08× → drawdown hits −11.8% (FTMO limit −10%) | Validates sizing respects broker rules under stress |
+| **C1** | A sizing multiplier safe on the backtest's short window breached FTMO's limit once measured on the full history | Validates sizing respects broker rules under stress |
 | **C2** | 50 trades look good, but Monte Carlo shows 0% pass FTMO | Bootstrap reorders to test robustness |
 | **D2** | Assumes 0.5p spread, broker is 1.6p → breakeven WR jumps 33%→37% | Recalculates profit targets after real costs |
 | **G1** | Signal uses `rolling(center=True)` = half future | Scans for lookahead bias, `.shift(-n)` |

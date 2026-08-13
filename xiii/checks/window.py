@@ -7,9 +7,6 @@ If a short favorable window inflates Sharpe, the "sellable" number
 is a window artifact — exactly the flaw that sold a headline Sharpe of 2.53
 which did not survive the full history.
 
-Reference logic: 13th Man audit from 2026-06-21
-("2.3 years 2023-2025 inflated Sharpe by +49% vs 2021-2025").
-
 Input: a series of ~daily returns (pd.Series). B1 reasons in observation count
 (≈252/yr); support for irregular series comes later.
 """

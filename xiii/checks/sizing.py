@@ -3,9 +3,9 @@ xiii.checks.sizing — section C of protocol (sizing honesty).
 
 C1_sizing_vs_maxdd: the CRITICAL check of the Thirteenth Man.
 
-Real flaw: "my backtest maxDD = -2.6%, at 1.08x I go below -10% FTMO".
-Reason: backtest measured on a short window; real maxDD over 16 yrs = -10.9%.
-At 1.08×, you hit -11.8% → breach.
+Real flaw: "my backtest maxDD = -2.6%, so 1.08x sizing stays inside FTMO's
+-10% limit". Reason: -2.6% was measured on a short favorable window. Sized
+on the honest full-history drawdown instead, the same 1.08x crossed the limit.
 
 C1 takes the deployed sizing and validates that it respects broker limits.
 """
