@@ -73,7 +73,7 @@ def audit(
       A1_dummy_scan            <- source_file                                    [ACTIVE]
       A3_series_alignment      <- source_file                                    [ACTIVE]
       G1_lookahead_scan        <- source_file                                    [ACTIVE]
-      B1_window_sensitivity    <- returns|equity      # catches 2.53->1.22 mirage [ACTIVE]
+      B1_window_sensitivity    <- returns|equity      # catches the lucky-window mirage [ACTIVE]
       B3_yearly_breakdown      <- returns|equity (dated)                         [ACTIVE]
       C1_sizing_vs_maxdd       <- equity + broker + deployed_sizing             [ACTIVE]
       C2_montecarlo_constraints<- trades + broker                               [ACTIVE]

@@ -4,7 +4,8 @@ xiii.checks.window — section B of protocol (window honesty).
 B1_window_sensitivity : THE check that catches the mirage.
 Recalculates Sharpe over full history vs recent sub-windows.
 If a short favorable window inflates Sharpe, the "sellable" number
-is a window artifact — exactly the flaw Sharpe 2.53 -> honest 1.22.
+is a window artifact — exactly the flaw that sold a headline Sharpe of 2.53
+which did not survive the full history.
 
 Reference logic: 13th Man audit from 2026-06-21
 ("2.3 years 2023-2025 inflated Sharpe by +49% vs 2021-2025").
@@ -36,7 +37,7 @@ def b1_window_sensitivity(
     """Detects a Sharpe inflated by a recent favorable sub-window.
 
     warn_pct / fail_pct: thresholds for Sharpe inflation (%) of a sub-window
-    vs full history. 2.53/1.22 = +107% -> FAIL; +49% -> WARN.
+    vs full history. Defaults: +50% inflation -> FAIL, +20% -> WARN.
     """
     if returns is None or len(returns.dropna()) < min_obs:
         n = 0 if returns is None else len(returns.dropna())
@@ -121,7 +122,7 @@ def b1_window_sensitivity(
         f"Sharpe inflated +{worst_infl:.0f}% by {_yr(worst_y)} window ({verdict})",
         f"Full history ({years_full} yrs): Sharpe {sh_full:.2f}. "
         f"{_yr(worst_y)} window: Sharpe {sh_short:.2f}. "
-        f"The 'sellable' number comes from the favorable window — classic flaw "
-        f"type 2.53 -> 1.22. Size and decide on {sh_full:.2f}, not {sh_short:.2f}.",
+        f"The 'sellable' number comes from the favorable window. "
+        f"Size and decide on {sh_full:.2f}, not {sh_short:.2f}.",
         evidence,
     )

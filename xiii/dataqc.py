@@ -16,7 +16,7 @@ Real flaws that motivated each check:
   DQ2/DQ5         : CFD feeds have session holes and frozen quotes that
                     silently shrink or bias the effective sample.
   DQ6_length      : short windows inflate Sharpe. A 2.3-year window sold a
-                    2.53 Sharpe that was ~1.2 on the honest 16-year history.
+                    2.53 Sharpe that collapsed on the honest 16-year history.
 
 Verdict vocabulary (a gate, not a score):
   usable                -> no FAIL, no WARN
@@ -358,8 +358,8 @@ def dq6_length(df: pd.DataFrame, min_years_warn: float,
             _id, "DQ", "FAIL",
             f"History too short: {span:.1f} years ({len(df)} bars)",
             f"Below {min_years_fail:g} years nothing survives a regime change. "
-            "Real flaw: a 2.3-year window sold Sharpe 2.53 where the honest "
-            "16-year figure was ~1.2. Get more history before backtesting.",
+            "Real flaw: a 2.3-year window sold a Sharpe of 2.53 that collapsed "
+            "once the full 16-year history was measured. Get more history first.",
             ev,
         )
     if span < min_years_warn:

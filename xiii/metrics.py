@@ -2,7 +2,8 @@
 xiii.metrics — performance primitives, EXTRACTED as-is from the lab.
 
 Source: research/sizing_fix.py. Logic unchanged: these are exactly the
-calculations that uncovered the mirage (Sharpe claimed 2.53 -> honest 1.22).
+calculations that uncovered the mirage (a claimed Sharpe of 2.53 that did not
+survive the full history).
 Pure functions, no dependencies other than numpy/pandas.
 """
 from __future__ import annotations
