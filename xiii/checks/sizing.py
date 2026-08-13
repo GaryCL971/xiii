@@ -81,31 +81,34 @@ def c1_sizing_vs_maxdd(
     }
 
     limit = broker.max_total_drawdown
-    margin = dd_sized - limit  # margin (negative = safe, positive = breach)
+    # Both are negative fractions (e.g. -0.46 vs -0.10). A curve breaches when its
+    # drawdown is DEEPER than the limit, i.e. more negative — so the comparison runs
+    # the opposite way to the intuition built on positive percentages.
+    margin = dd_sized - limit  # > 0 = headroom still available, < 0 = depth of the breach
 
-    if dd_sized >= limit:
+    if margin < 0:
         return CheckResult(
             _id, "C", "FAIL",
             f"Sizing would exceed {broker.name} limit",
             f"Base maxDD: {dd_base*100:.1f}%. "
             f"After sizing ×{deployed_sizing}: {dd_sized*100:.1f}%. "
             f"{broker.name} limit: {limit*100:.1f}%. "
-            f"→ BREACH BY {margin*100:.1f} pp. Reduce sizing or edge.",
+            f"→ BREACH BY {-margin*100:.1f} pp. Reduce sizing or edge.",
             evidence,
         )
 
-    if margin > -0.02:  # less than 2 pp margin
+    if margin < 0.02:  # less than 2 pp of headroom
         return CheckResult(
             _id, "C", "WARN",
-            f"Tight DD margin: {-margin*100:.1f} pp under limit",
-            f"A maxDD slip of +{-margin*100:.1f} pp → breach. "
-            f"Little buffer. {-margin*100:.1f} pp away from cliff.",
+            f"Tight DD margin: {margin*100:.1f} pp under limit",
+            f"A maxDD slip of +{margin*100:.1f} pp → breach. "
+            f"Little buffer. {margin*100:.1f} pp away from cliff.",
             evidence,
         )
 
     return CheckResult(
         _id, "C", "PASS",
-        f"Sizing compliant: {-margin*100:.1f} pp margin vs {broker.name} limit",
+        f"Sizing compliant: {margin*100:.1f} pp margin vs {broker.name} limit",
         f"Base maxDD {dd_base*100:.1f}%, "
         f"after sizing ×{deployed_sizing} → {dd_sized*100:.1f}%. "
         f"Limit: {limit*100:.1f}%. Safe.",
