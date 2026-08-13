@@ -36,13 +36,14 @@ def build_realistic_equity(n_days=4 * 252, sharpe_base=1.2, drawdown_base=-0.08)
 def build_trades_from_equity(equity, n_trades_target=50):
     """Simulates a trade sequence consistent with equity."""
     n_days = len(equity)
-    trade_days = np.random.choice(n_days - 1, size=n_trades_target, replace=False)
-    trade_days = np.sort(trade_days)
+    # Same seeded generator as the equity curve: the demo output must be reproducible,
+    # otherwise the screenshots in the README document a run nobody can obtain again.
+    trade_days = np.sort(rng.choice(n_days - 1, size=n_trades_target, replace=False))
 
     trades = []
     for i, day_idx in enumerate(trade_days):
         entry_idx = day_idx
-        exit_idx = min(day_idx + np.random.randint(1, 20), n_days - 1)
+        exit_idx = min(day_idx + int(rng.integers(1, 20)), n_days - 1)
 
         entry_price = equity.iloc[entry_idx]
         exit_price = equity.iloc[exit_idx]
