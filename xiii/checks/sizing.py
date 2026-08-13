@@ -11,8 +11,6 @@ C1 takes the deployed sizing and validates that it respects broker limits.
 """
 from __future__ import annotations
 
-import numpy as np
-
 import pandas as pd
 
 from ..brokers import BrokerConfig
@@ -36,9 +34,12 @@ def c1_sizing_vs_maxdd(
 
     Logic:
       1. Reconstructs returns from equity
-      2. Calculates real maxDD of the curve
-      3. Applies sizing: maxDD * deployed_sizing
-      4. Validates vs broker limits (FTMO: -10%, Vantage: n/a)
+      2. Recomputes maxDD on the SIZED returns (deployed_sizing * returns) —
+         drawdown does not scale linearly under compounding, so `dd_base *
+         deployed_sizing` is an approximation that gets worse the further
+         deployed_sizing sits from 1.0 (see metrics.k_for_dd's docstring)
+      3. Validates vs broker limits (FTMO: -10%, Vantage: n/a)
+      4. On a breach, reports the largest sizing that would fit (metrics.k_for_dd)
     """
     _id = "C1_sizing_vs_maxdd"
 
@@ -69,16 +70,11 @@ def c1_sizing_vs_maxdd(
 
     returns = equity_clean.pct_change().dropna()
 
-    # Measure real maxDD
+    # Measure real maxDD, then re-derive it on the SIZED returns — not by scaling
+    # dd_base linearly, which diverges sharply from the true compounded value the
+    # further deployed_sizing sits from 1.0 (metrics.k_for_dd's docstring).
     dd_base = max_drawdown(returns)
-    dd_sized = dd_base * deployed_sizing
-
-    evidence = {
-        "dd_base_pct": round(dd_base * 100, 1),
-        "deployed_sizing": deployed_sizing,
-        "dd_after_sizing_pct": round(dd_sized * 100, 1),
-        "broker_max_dd_limit_pct": broker.max_total_drawdown * 100,
-    }
+    dd_sized = max_drawdown(deployed_sizing * returns)
 
     limit = broker.max_total_drawdown
     # Both are negative fractions (e.g. -0.46 vs -0.10). A curve breaches when its
@@ -86,14 +82,39 @@ def c1_sizing_vs_maxdd(
     # the opposite way to the intuition built on positive percentages.
     margin = dd_sized - limit  # > 0 = headroom still available, < 0 = depth of the breach
 
+    # Advisory only, never the verdict above: the largest sizing that keeps maxDD
+    # at the limit. k_for_dd's binary search returns a midpoint sitting almost
+    # exactly ON the target, so checking k_max itself for safety is a coin flip
+    # on floating-point noise — checking it directly here misreported every case,
+    # safe and not, as invalid. What actually signals "no sizing fits" is the
+    # search saturating at its own floor (0.05x): if even that still breaches,
+    # there is no realistic sizing that fits, and reporting the search's boundary
+    # as if it were a real answer would be the same kind of silent wrong-number
+    # bug this fix exists to remove.
+    k_max = k_for_dd(returns, target_dd=limit)
+    k_max_valid = max_drawdown(0.05 * returns) >= limit
+    evidence = {
+        "dd_base_pct": round(dd_base * 100, 1),
+        "deployed_sizing": deployed_sizing,
+        "dd_after_sizing_pct": round(dd_sized * 100, 1),
+        "broker_max_dd_limit_pct": broker.max_total_drawdown * 100,
+        "max_safe_sizing": round(k_max, 3) if k_max_valid else None,
+    }
+
     if margin < 0:
+        safe_hint = (
+            f" Max sizing that fits: ×{k_max:.2f}."
+            if k_max_valid else
+            " No realistic sizing keeps this within the limit — the edge itself "
+            "is too fragile, not just the sizing."
+        )
         return CheckResult(
             _id, "C", "FAIL",
             f"Sizing would exceed {broker.name} limit",
             f"Base maxDD: {dd_base*100:.1f}%. "
             f"After sizing ×{deployed_sizing}: {dd_sized*100:.1f}%. "
             f"{broker.name} limit: {limit*100:.1f}%. "
-            f"→ BREACH BY {-margin*100:.1f} pp. Reduce sizing or edge.",
+            f"→ BREACH BY {-margin*100:.1f} pp.{safe_hint}",
             evidence,
         )
 
