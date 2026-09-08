@@ -35,7 +35,7 @@ H. Pre-mortem              → write "how this dies" BEFORE going live
 pip install git+https://github.com/GaryCL971/xiii.git
 ```
 
-Not on PyPI yet — the name is reserved for the first stable release.
+Not on PyPI yet — install straight from the repository above.
 
 ### Audit Your Backtest
 
