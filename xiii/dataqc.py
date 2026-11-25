@@ -90,7 +90,7 @@ def _pick_columns(df: pd.DataFrame, vocab) -> dict:
     return mapping
 
 
-def _normalize(data) -> pd.DataFrame:
+def _normalize(data, *, utc: bool = False) -> pd.DataFrame:
     """Accepts a DataFrame (OHLC or close-only, case-insensitive, MultiIndex
     columns tolerated) or a Series. Promotes a time/date column to index if
     needed. Returns a DataFrame with lowercase columns and a naive
@@ -120,7 +120,11 @@ def _normalize(data) -> pd.DataFrame:
                 "silently fabricate 1970 dates)"
             )
         df.index = pd.to_datetime(df.index)
+    if utc:
+        df.attrs["timezone_aware"] = df.index.tz is not None
     if df.index.tz is not None:
+        if utc:
+            df.index = df.index.tz_convert("UTC")
         df.index = df.index.tz_localize(None)
     return df
 
@@ -426,7 +430,7 @@ def _aligned_returns(cand: pd.DataFrame, ref: pd.DataFrame):
     return a.loc[common], b.loc[common]
 
 
-def dq8_lead_lag(cand: pd.DataFrame, ref: pd.DataFrame | None) -> CheckResult:
+def dq8_lead_lag(cand: pd.DataFrame, ref: pd.DataFrame | None, *, proxy: bool = False) -> CheckResult:
     """Are the candidate's timestamps what they claim to be?
 
     A feed that stamps start-of-day snapshots as daily closes correlates
@@ -436,20 +440,29 @@ def dq8_lead_lag(cand: pd.DataFrame, ref: pd.DataFrame | None) -> CheckResult:
     _id = "DQ8_lead_lag"
     if ref is None:
         return CheckResult(
-            _id, "DQ", "SKIP", "No reference series provided",
+            _id, "DQ", "FAIL" if proxy else "SKIP", "No reference series provided",
             "Pass reference=<broker feed> to test timestamp alignment. "
             "Mandatory before trusting any open/close/gap-anchored signal.", {},
         )
     a, b = _aligned_returns(cand, ref)
+    if proxy:
+        valid = np.isfinite(a) & np.isfinite(b)
+        a, b = a[valid], b[valid]
     if len(a) < 200:
         return CheckResult(
-            _id, "DQ", "SKIP",
+            _id, "DQ", "FAIL" if proxy else "SKIP",
             f"Only {len(a)} overlapping bars with the reference",
             "Not enough overlap to assess alignment.", {"overlap": len(a)},
         )
+    if proxy and (a.nunique() < 2 or b.nunique() < 2):
+        return CheckResult(_id, "DQ", "FAIL", "Lead/lag is not measurable",
+                           "Both feeds need nonconstant finite returns.", {"overlap": len(a)})
     corrs = {}
     for lag in range(-2, 3):
         corrs[lag] = float(a.corr(b.shift(lag)))
+    if proxy and not all(np.isfinite(v) for v in corrs.values()):
+        return CheckResult(_id, "DQ", "FAIL", "Lead/lag is not measurable",
+                           "Proxy validation requires finite correlations.", {"overlap": len(a)})
     best = max(corrs, key=lambda k: abs(corrs[k]))
     ev = {"corr_by_lag": {str(k): round(v, 4) for k, v in corrs.items()},
           "best_lag": best, "overlap": len(a)}
@@ -472,27 +485,36 @@ def dq8_lead_lag(cand: pd.DataFrame, ref: pd.DataFrame | None) -> CheckResult:
     )
 
 
-def dq9_divergence(cand: pd.DataFrame, ref: pd.DataFrame | None) -> CheckResult:
+def dq9_divergence(cand: pd.DataFrame, ref: pd.DataFrame | None, *, proxy: bool = False) -> CheckResult:
     """How far is the proxy from the instrument actually traded?"""
     _id = "DQ9_divergence"
     if ref is None:
         return CheckResult(
-            _id, "DQ", "SKIP", "No reference series provided",
+            _id, "DQ", "FAIL" if proxy else "SKIP", "No reference series provided",
             "Pass reference=<broker feed> to quantify proxy divergence.", {},
         )
     a, b = _aligned_returns(cand, ref)
+    if proxy:
+        valid = np.isfinite(a) & np.isfinite(b)
+        a, b = a[valid], b[valid]
     if len(a) < 200:
         return CheckResult(
-            _id, "DQ", "SKIP",
+            _id, "DQ", "FAIL" if proxy else "SKIP",
             f"Only {len(a)} overlapping bars with the reference",
             "Not enough overlap to quantify divergence.", {"overlap": len(a)},
         )
+    if proxy and (a.nunique() < 2 or b.nunique() < 2):
+        return CheckResult(_id, "DQ", "FAIL", "Proxy divergence is not measurable",
+                           "Both feeds need nonconstant finite returns.", {"overlap": len(a)})
     corr = float(a.corr(b))
     te = float((a - b).std() * np.sqrt(252))
     sign_agree = float((np.sign(a) == np.sign(b)).mean())
     ev = {"corr_lag0": round(corr, 4), "tracking_error_ann": round(te, 4),
           "sign_agreement": round(sign_agree, 4), "overlap": len(a)}
 
+    if proxy and not np.isfinite(corr):
+        return CheckResult(_id, "DQ", "FAIL", "Proxy divergence is not measurable",
+                           "Both feeds need nonconstant finite returns.", {"overlap": len(a)})
     if corr < 0.90:
         return CheckResult(
             _id, "DQ", "FAIL",
@@ -506,7 +528,7 @@ def dq9_divergence(cand: pd.DataFrame, ref: pd.DataFrame | None) -> CheckResult:
         )
     if corr < 0.97:
         return CheckResult(
-            _id, "DQ", "WARN",
+            _id, "DQ", "FAIL" if proxy else "WARN",
             f"Proxy is close but not identical: corr {corr:.2f}, "
             f"tracking error {te:.1%}/yr",
             "Fine for exploration. Before sizing or deployment, re-measure "
@@ -518,6 +540,38 @@ def dq9_divergence(cand: pd.DataFrame, ref: pd.DataFrame | None) -> CheckResult:
         _id, "DQ", "PASS",
         f"Proxy tracks the reference (corr {corr:.2f}, TE {te:.1%}/yr)", "", ev,
     )
+
+
+def proxy_checks(data, reference) -> list[CheckResult]:
+    """Run the two mandatory comparison checks for an explicitly declared proxy."""
+    checks = (("DQ8_lead_lag", dq8_lead_lag), ("DQ9_divergence", dq9_divergence))
+    try:
+        if data is None:
+            raise ValueError("Candidate proxy prices are required.")
+        # Compare aware feeds in UTC. Naive feeds must already use the same clock.
+        frames = [_normalize(item, utc=True) if item is not None else None for item in (data, reference)]
+        for frame in frames:
+            if frame is not None and (frame.index.hasnans or not frame.index.is_unique):
+                raise ValueError("Comparison requires unique, valid timestamps.")
+        cand, ref = (frame.sort_index() if frame is not None else None for frame in frames)
+        if ref is not None:
+            if cand.attrs["timezone_aware"] != ref.attrs["timezone_aware"]:
+                raise ValueError("Use timezone-aware timestamps for both feeds or align both on the same naive clock.")
+            daily = _is_daily(_median_spacing(cand.index))
+            if daily != _is_daily(_median_spacing(ref.index)):
+                raise ValueError("Both comparison feeds must use the same daily or intraday frequency.")
+            if daily and any(frame.index.normalize().has_duplicates for frame in (cand, ref)):
+                raise ValueError("Daily comparison requires one close per comparison date.")
+    except (ValueError, TypeError, KeyError) as exc:
+        return [CheckResult(name, "DQ", "FAIL", "Invalid proxy comparison input", str(exc), {})
+                for name, _ in checks]
+    results = []
+    for name, check in checks:
+        try:
+            results.append(check(cand, ref, proxy=True))
+        except (ValueError, TypeError, KeyError) as exc:
+            results.append(CheckResult(name, "DQ", "FAIL", "Proxy comparison could not run", str(exc), {}))
+    return results
 
 
 def dq10_cost_shift(cost_series: pd.Series | None) -> CheckResult:
@@ -628,6 +682,7 @@ def qc(
     cost_series=None,
     min_years_warn: float = 10.0,
     min_years_fail: float = 3.0,
+    proxy: bool = False,
 ) -> DataQCReport:
     """Runs the data quality gate on one dataset.
 
@@ -637,6 +692,7 @@ def qc(
                  mandatory before trusting open/close/gap-anchored signals
                  or cross-asset rankings built on proxies.
     cost_series: spread or swap history, enables DQ10.
+    proxy: require a measurable reference and block soft divergence.
 
     Missing input => the corresponding check returns SKIP, not an error.
     A crashed check returns FAIL (no silent crash).
@@ -645,7 +701,7 @@ def qc(
     df = _normalize(data)
     df = df[~df.index.duplicated(keep="last")].sort_index() if not df.index.is_unique \
         else df.sort_index()
-    ref = _normalize(reference) if reference is not None else None
+    ref = _normalize(reference) if reference is not None and not proxy else None
     if ref is not None:
         ref = ref[~ref.index.duplicated(keep="last")].sort_index()
 
@@ -660,10 +716,12 @@ def qc(
         lambda: dq5_frozen(df),
         lambda: dq6_length(df, min_years_warn, min_years_fail),
         lambda: dq7_clock(df),
-        lambda: dq8_lead_lag(df, ref),
-        lambda: dq9_divergence(df, ref),
-        lambda: dq10_cost_shift(cost_series),
     ]
+    if proxy:
+        steps.extend(lambda result=result: result for result in proxy_checks(data, reference))
+    else:
+        steps.extend((lambda: dq8_lead_lag(df, ref), lambda: dq9_divergence(df, ref)))
+    steps.append(lambda: dq10_cost_shift(cost_series))
     verdicts = []
     for step in steps:
         try:

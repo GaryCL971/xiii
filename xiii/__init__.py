@@ -63,6 +63,18 @@ def audit(
     sl_pips=None,
     tp_pips=None,
     win_rate_backtest: float | None = None,
+    *,
+    symbol: str = "GBPUSD",
+    proxy: bool = False,
+    proxy_data=None,
+    reference_data=None,
+    tick_spreads=None,
+    spread_regime: str = "all",
+    spread_percentile: int = 75,
+    spread_source: str | None = None,
+    spread_sensitive: bool = False,
+    session_replay=None,
+    session_periods_per_year: int = 252,
 ) -> AuditReport:
     """Launches the automatable checks of the Thirteenth Man on a backtest.
 
@@ -83,12 +95,17 @@ def audit(
     Missing input => the corresponding check returns SKIP (flagged), not an error.
     Returns an AuditReport (.print(), .to_json(), .passed, .verdicts).
 
+    Declare proxy=True (or pass proxy_data) to require proxy/reference price
+    comparison. Tick spreads optionally replace the broker's D2 fixed spread.
+    Pass a session_replay(offset_minutes) callback for informative D3 diagnostics.
+
     STATUS v0.1.dev: 8/9 checks active (A1, A3, B1, B3, C1, C2, D2, G1). DE remaining.
     """
     from .checks.cost import d2_spread_breakeven
     from .checks.integrity import a1_dummy_scan, a3_series_alignment, g1_lookahead_scan
     from .checks.montecarlo import c2_montecarlo_constraints
     from .checks.sizing import c1_sizing_vs_maxdd
+    from .checks.time_shift import time_shift_check
     from .checks.window import b1_window_sensitivity
     from .checks.yearly import b3_yearly_breakdown
 
@@ -109,7 +126,18 @@ def audit(
         c2_montecarlo_constraints(
             trades, broker, deployed_sizing, daily_returns=rets if trades is not None else None,
         ),
-        d2_spread_breakeven(sl_pips, tp_pips, win_rate_backtest=wr, broker=broker, symbol="GBPUSD"),
+        d2_spread_breakeven(
+            sl_pips, tp_pips, win_rate_backtest=wr, broker=broker, symbol=symbol,
+            tick_spreads=tick_spreads, spread_regime=spread_regime, spread_percentile=spread_percentile,
+            spread_source=spread_source, spread_sensitive=spread_sensitive,
+        ),
         g1_lookahead_scan(source_file),
     ]
-    return AuditReport(verdicts=verdicts, checks_total=9)
+    checks_total = 9
+    if proxy or proxy_data is not None:
+        verdicts.extend(dataqc.proxy_checks(proxy_data, reference_data))
+        checks_total += 2
+    if session_replay is not None:
+        verdicts.append(time_shift_check(session_replay, periods_per_year=session_periods_per_year))
+        checks_total += 1
+    return AuditReport(verdicts=verdicts, checks_total=checks_total)

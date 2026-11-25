@@ -65,6 +65,9 @@ def _cmd_audit(args: argparse.Namespace) -> int:
         sl_pips=args.sl_pips,
         tp_pips=args.tp_pips,
         win_rate_backtest=args.win_rate,
+        proxy=args.proxy,
+        proxy_data=_load_equity(args.proxy_data) if args.proxy_data else None,
+        reference_data=_load_equity(args.reference_data) if args.reference_data else None,
     )
 
     if args.json:
@@ -106,6 +109,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--sl-pips", type=float, metavar="N", help="stop loss, in pips (with --tp-pips: D2)")
     p.add_argument("--tp-pips", type=float, metavar="N", help="take profit, in pips (with --sl-pips: D2)")
     p.add_argument("--win-rate", type=float, metavar="R", help="backtest win rate, 0-1 (refines D2)")
+    p.add_argument("--proxy", action="store_true", help="require proxy and broker close series for DQ8/DQ9")
+    p.add_argument("--proxy-data", type=Path, help="proxy CSV: date,close; implies --proxy")
+    p.add_argument("--reference-data", type=Path, help="broker-reference CSV: date,close")
     p.add_argument("--json", action="store_true", help="emit JSON instead of the readable report")
     return parser
 
