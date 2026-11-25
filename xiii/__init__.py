@@ -76,7 +76,7 @@ def audit(
       B1_window_sensitivity    <- returns|equity      # catches the lucky-window mirage [ACTIVE]
       B3_yearly_breakdown      <- returns|equity (dated)                         [ACTIVE]
       C1_sizing_vs_maxdd       <- equity + broker + deployed_sizing             [ACTIVE]
-      C2_montecarlo_constraints<- trades + broker                               [ACTIVE]
+      C2_montecarlo_constraints<- trades + broker, optional daily returns                               [ACTIVE]
       D2_spread_breakeven      <- sl_pips + tp_pips + broker                    [ACTIVE]
       DE_portfolio_correlation <- portfolio
 
@@ -106,7 +106,9 @@ def audit(
         b1_window_sensitivity(rets),
         b3_yearly_breakdown(rets),
         c1_sizing_vs_maxdd(equity, broker, deployed_sizing),
-        c2_montecarlo_constraints(trades, broker, deployed_sizing),
+        c2_montecarlo_constraints(
+            trades, broker, deployed_sizing, daily_returns=rets if trades is not None else None,
+        ),
         d2_spread_breakeven(sl_pips, tp_pips, win_rate_backtest=wr, broker=broker, symbol="GBPUSD"),
         g1_lookahead_scan(source_file),
     ]
